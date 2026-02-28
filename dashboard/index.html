@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>NetShield IDPS – Live Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0b0f14;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .card {
+            background: #111827;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            padding: 6px;
+            border-bottom: 1px solid #1f2933;
+            text-align: left;
+        }
+
+        th {
+            background: #1f2937;
+        }
+
+        .alerts {
+            margin-top: 15px;
+        }
+
+        .chart {
+            margin-top: 15px;
+        }
+
+        .high {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .medium {
+            color: #f59e0b;
+        }
+
+        .low {
+            color: #22c55e;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🛡️ NetShield IDPS – Live Dashboard</h1>
+
+    <div class="grid">
+        <div class="card">
+            <h3>ARP Traffic (Last 20)</h3>
+            <table id="arpTable">
+                <tr>
+                    <th>Time</th>
+                    <th>Source IP</th>
+                    <th>MAC</th>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>DDoS Traffic (Last 20)</h3>
+            <table id="ddosTable">
+                <tr>
+                    <th>Time</th>
+                    <th>Source IP</th>
+                    <th>PPS</th>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="card alerts">
+        <h3>🚨 Recent Alerts (ARP + DDoS)</h3>
+        <table id="alertTable">
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Severity</th>
+            </tr>
+        </table>
+    </div>
+
+
+
+    <script>
+        // 🔥 Firebase config (USE YOUR OWN VALUES)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "netshield-idps.firebaseapp.com",
+            databaseURL: "https://netshield-idps-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "netshield-idps"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref('netshield_logs');
+
+        const arpTable = document.getElementById('arpTable');
+        const ddosTable = document.getElementById('ddosTable');
+        const alertTable = document.getElementById('alertTable');
+
+        let arpCount = 0, ddosCount = 0;
+        let chart;
+
+        // For dynamic flow chart
+        let arpHistory = [], ddosHistory = [];
+        const maxPoints = 10;
+
+        function addRow(table, cols) {
+            const row = table.insertRow(1);
+            cols.forEach(c => row.insertCell().innerText = c);
+            if (table.rows.length > 21) table.deleteRow(21);
+        }
+
+        // ---------- ARP Traffic ----------
+        db.child('traffic/arp').limitToLast(20).on('child_added', snap => {
+            const d = snap.val();
+            arpCount++;
+            addRow(arpTable, [d.timestamp, d.src_ip, d.src_mac]);
+            updateChart();
+        });
+
+        // ---------- DDoS Traffic ----------
+        db.child('traffic/ddos').limitToLast(20).on('child_added', snap => {
+            const d = snap.val();
+            ddosCount++;
+            addRow(ddosTable, [d.timestamp, d.src_ip, d.total]);
+            updateChart();
+        });
+
+        // ---------- Alerts ----------
+        function addAlert(type) {
+            db.child('alerts/' + type).limitToLast(20).on('child_added', snap => {
+                const d = snap.val();
+                const sevClass = d.severity ? d.severity.toLowerCase() : 'high';
+                const row = alertTable.insertRow(1);
+                row.innerHTML = `<td>${d.timestamp}</td><td>${type.toUpperCase()}</td><td>${d.src_ip}</td><td class="${sevClass}">${d.severity || 'HIGH'}</td>`;
+                if (alertTable.rows.length > 21) alertTable.deleteRow(21);
+            });
+        }
+
+        addAlert('arp');
+        addAlert('ddos');
+
+        // ---------- Dynamic Flow Chart ----------
+
+    </script>
+</body>
+
+</html>
